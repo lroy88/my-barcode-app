@@ -66,43 +66,59 @@
             setTimeout(() => scanner.resume(), 3000); 
         }
 
-        async function checkProduct(barcode) {
-            const status = document.getElementById('status');
-            const nameInput = document.getElementById('product_name');
-            
-            log("מחפש ב-Supabase...");
-            try {
-                const { data } = await supabaseClient.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
+       async function checkProduct(barcode) {
+    const status = document.getElementById('status');
+    const nameInput = document.getElementById('product_name');
+    
+    log("🔍 מחפש ב-Supabase...");
+    try {
+        const { data } = await supabaseClient.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
 
-                if (data) {
-                    log("✅ נמצא אצלך!");
-                    nameInput.value = data.product_name || data.name;
-                    status.innerText = "מוצר מוכר!";
-                    return;
-                }
+        if (data) {
+            log("✅ נמצא אצלך!");
+            nameInput.value = data.product_name || data.name;
+            status.innerText = "מוצר מוכר!";
+            return;
+        }
 
-                log("🤖 שואל את ה-AI...");
-                status.innerText = "מזהה ב-AI...";
+        log("🤖 שואל את ה-AI (ניסיון זיהוי)...");
+        status.innerText = "מזהה ב-AI...";
 
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({
-    contents: [{ 
-        parts: [{ 
-            text: `Analyze this barcode: ${barcode}. 
-            1. First, check if it's a known EAN-13 or UPC barcode for an Israeli product.
-            2. If it's from an Israeli brand (like Tnuva, Osem, Strauss, Rami Levy), identify the specific product and its weight.
-            3. Return ONLY the product name in Hebrew.
-            Example: "גבינה לבנה תנובה 5% 250 גרם".
-            If you are not 100% sure but have a strong guess, provide the guess. 
-            Only return 'Unknown' if it's completely gibberish.` 
-        }] 
-    }]
-})
-                    })
-                });
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ 
+                    parts: [{ 
+                        text: `Identify this Israeli barcode: ${barcode}. 
+                        If it's a known product from Rami Levy, Shufersal, or Osem/Tnuva/Strauss, 
+                        return ONLY the name and weight in Hebrew. 
+                        Example: 'חלב תנובה 3% 1 ליטר'. 
+                        Even if you're not 100% sure, give your best guess based on the barcode prefix.
+                        Do not return 'Unknown' unless it's impossible.` 
+                    }] 
+                }]
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates[0] && result.candidates[0].content) {
+            const aiName = result.candidates[0].content.parts[0].text.trim();
+            log("✨ ה-AI זיהה: " + aiName);
+            nameInput.value = aiName;
+            status.innerText = "ה-AI זיהה. לשמור?";
+        } else {
+            log("❓ ה-AI לא הצליח לזהות.");
+            status.innerText = "לא זוהה. הכנס שם ידנית.";
+        }
+
+    } catch (err) {
+        log("❗ תקלה בחיפוש: " + err.message);
+    }
+}
 
                 const result = await response.json();
                 if (result.candidates && result.candidates[0]) {
@@ -139,4 +155,5 @@
     </script>
 </body>
 </html>
+
 
