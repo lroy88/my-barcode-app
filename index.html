@@ -88,8 +88,19 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Identify this barcode: ${barcode}. Return ONLY the product name in Hebrew.` }] }]
+                   body: JSON.stringify({
+    contents: [{ 
+        parts: [{ 
+            text: `Analyze this barcode: ${barcode}. 
+            1. First, check if it's a known EAN-13 or UPC barcode for an Israeli product.
+            2. If it's from an Israeli brand (like Tnuva, Osem, Strauss, Rami Levy), identify the specific product and its weight.
+            3. Return ONLY the product name in Hebrew.
+            Example: "גבינה לבנה תנובה 5% 250 גרם".
+            If you are not 100% sure but have a strong guess, provide the guess. 
+            Only return 'Unknown' if it's completely gibberish.` 
+        }] 
+    }]
+})
                     })
                 });
 
@@ -128,3 +139,4 @@
     </script>
 </body>
 </html>
+
