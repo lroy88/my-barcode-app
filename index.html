@@ -25,6 +25,75 @@
     <p id="status"></p>
 </div>
 
+    <!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>אבחון סורק</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f0f0f0; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #reader { width: 100%; margin-bottom: 20px; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
+        #debug { background: #333; color: #0f0; padding: 10px; text-align: left; font-family: monospace; font-size: 12px; margin-top: 20px; border-radius: 5px; height: 100px; overflow-y: scroll; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h3>סורק עם אבחון</h3>
+    <div id="reader"></div>
+    <input type="text" id="barcode" placeholder="ברקוד">
+    <input type="text" id="product_name" placeholder="שם מוצר">
+    <div id="debug">מערכת מוכנה...</div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'ה-URL-שלך';
+    const SUPABASE_KEY = 'ה-KEY-שלך';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    function log(msg) {
+        const d = document.getElementById('debug');
+        d.innerHTML += "<br>> " + msg;
+        d.scrollTop = d.scrollHeight;
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess);
+
+    async function onScanSuccess(decodedText) {
+        const code = decodedText.trim();
+        document.getElementById('barcode').value = code;
+        log("סרקתי ברקוד: [" + code + "]");
+
+        log("מחפש ב-Supabase...");
+        try {
+            const { data, error } = await supabaseClient
+                .from('barcode_products')
+                .select('*')
+                .eq('barcode', code)
+                .maybeSingle();
+
+            if (error) {
+                log("שגיאת שרת: " + error.message);
+            } else if (data) {
+                log("נמצא מוצר! שם: " + (data.product_name || data.name));
+                document.getElementById('product_name').value = data.product_name || data.name;
+            } else {
+                log("לא נמצאה התאמה בטבלה לברקוד " + code);
+            }
+        } catch (e) {
+            log("תקלה כללית: " + e.message);
+        }
+    }
+</script>
+</body>
+</html>
+
 <script>
     // הגדרות Supabase
     const SUPABASE_URL = 'https://lqicxcbgdgamjxnfejto.supabase.co';
@@ -102,5 +171,6 @@
 </script>
 </body>
 </html>
+
 
 
