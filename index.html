@@ -35,7 +35,9 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxaWN4Y2JnZGdhbWp4bmZlanRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzE2MjcsImV4cCI6MjA4NjQwNzYyN30.ohqSNWypejEEDHwDY4MzsHXyCOOKlFFNHlZ-xGAk_w0';
         const GEMINI_API_KEY = 'AIzaSyCGne0KtwORv_rxnC2JV5HkXM2LV6HsZi0';
 
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let scanner;
+        let currentFacingMode = "environment";
 
         function log(msg) {
             const d = document.getElementById('debug');
@@ -43,76 +45,68 @@
             d.scrollTop = d.scrollHeight;
         }
 
-        // הפעלת מצלמה אחורית במפורש
-        const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        // פונקציה להפעלת המצלמה
+        function startScanner(mode) {
+            if (scanner) scanner.clear();
+            scanner = new Html5Qrcode("reader");
+            scanner.start({ facingMode: mode }, { fps: 10, qrbox: 250 }, onScan).catch(e => log("שגיאה: " + e));
+        }
 
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            config, 
-            onScanSuccess
-        ).catch(err => {
-            log("שגיאת מצלמה: " + err);
-            // אם נכשל, ננסה מצלמה כלשהי
-            html5QrCode.start({ facingMode: "user" }, config, onScanSuccess);
-        });
+        function switchCamera() {
+            currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+            log("מחליף למצב: " + currentFacingMode);
+            startScanner(currentFacingMode);
+        }
 
-        async function onScanSuccess(decodedText) {
-            const barcode = decodedText.trim();
-            document.getElementById('barcode').value = barcode;
-            log("סריקה: " + barcode);
-            
+        async function onScan(text) {
+            document.getElementById('barcode').value = text;
+            log("סרקתי: " + text);
             document.getElementById('status').innerText = "מחפש...";
-            await checkProduct(barcode);
+            await checkProduct(text);
         }
 
         async function checkProduct(barcode) {
             const nameInput = document.getElementById('product_name');
-            nameInput.value = ""; 
-
-            try {
-                const { data } = await supabaseClient.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
-                if (data) {
-                    nameInput.value = data.product_name || data.name;
-                    document.getElementById('status').innerText = "נמצא במאגר!";
-                    return;
-                }
-
-                log("🤖 AI מחפש מוצר ישראלי...");
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-                
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Identify this Israeli product barcode: ${barcode}. 
-                        If it belongs to an Israeli brand like Tnuva, Strauss, Osem, or a supermarket like Rami Levy/Shufersal, 
-                        return ONLY the Hebrew product name and weight. 
-                        If you are not 100% sure, give your best guess based on common Israeli barcodes. 
-                        Example: 'חומוס צבר 1 ק"ג'.` }] }]
-                    })
-                });
-
-                const result = await response.json();
-                if (result.candidates && result.candidates[0]) {
-                    const aiName = result.candidates[0].content.parts[0].text.trim();
-                    log("✨ AI זיהה: " + aiName);
-                    nameInput.value = aiName;
-                    document.getElementById('status').innerText = "ה-AI זיהה!";
-                } else {
-                    document.getElementById('status').innerText = "לא זוהה.";
-                }
-            } catch (err) {
-                log("❗ תקלה: " + err.message);
+            
+            // בדיקה ב-Supabase
+            const { data } = await client.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
+            if (data) {
+                nameInput.value = data.product_name || data.name;
+                document.getElementById('status').innerText = "נמצא במאגר!";
+                return;
             }
+
+            // פנייה ל-AI
+            log("🤖 שואל את ה-AI...");
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Identify Israeli product barcode ${barcode}. Return ONLY Hebrew name. If unknown return 'Unknown'.` }] }] })
+                });
+                const json = await res.json();
+                
+                if (json.candidates && json.candidates[0]) {
+                    const aiText = json.candidates[0].content.parts[0].text.trim();
+                    log("תשובת AI: " + aiText);
+                    nameInput.value = aiText;
+                    document.getElementById('status').innerText = (aiText === "Unknown") ? "לא זוהה" : "AI זיהה!";
+                } else {
+                    log("AI החזיר תשובה ריקה");
+                }
+            } catch (e) { log("שגיאת AI: " + e); }
         }
 
-        async function saveToSupabase() {
+        async function saveData() {
             const bc = document.getElementById('barcode').value;
             const nm = document.getElementById('product_name').value;
-            const { error } = await supabaseClient.from('barcode_products').insert([{ barcode: bc, product_name: nm }]);
-            if (error) alert("שגיאה בשמירה"); else alert("נשמר!");
+            const { error } = await client.from('barcode_products').insert([{ barcode: bc, product_name: nm }]);
+            alert(error ? "שגיאה" : "נשמר!");
         }
+
+        // הפעלה ראשונית
+        startScanner("environment");
     </script>
 </body>
 </html>
