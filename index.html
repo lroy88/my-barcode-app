@@ -40,34 +40,63 @@
             const status = document.getElementById('status');
             const GEMINI_API_KEY = 'AIzaSyCGne0KtwORv_rxnC2JV5HkXM2LV6HsZi0'; // שים כאן את המפתח שלך
 
-            log("בודק ב-Supabase שלך...");
-            try {
-                // בדיקה ב-Supabase
-                const { data } = await supabaseClient
-                    .from('barcode_products')
-                    .select('*')
-                    .eq('barcode', barcode)
-                    .maybeSingle();
+           log("🔍 בודק ב-Supabase...");
+    try {
+        const { data } = await supabaseClient
+            .from('barcode_products')
+            .select('*')
+            .eq('barcode', barcode)
+            .maybeSingle();
 
-                if (data) {
-                    log("✅ נמצא אצלך!");
-                    document.getElementById('product_name').value = data.product_name || data.name;
-                    status.innerText = "נמצא במאגר.";
-                    return;
-                }
+        if (data) {
+            log("✅ נמצא אצלך: " + (data.product_name || data.name));
+            document.getElementById('product_name').value = data.product_name || data.name;
+            status.innerText = "נמצא במאגר.";
+            return;
+        }
 
-                // פנייה ל-AI אם לא נמצא ב-Supabase
-                log("🤖 שואל את ה-AI על הברקוד...");
-                status.innerText = "מזהה מוצר באמצעות AI...";
+        log("🤖 פונה ל-AI (Flash 1.5)...");
+        status.innerText = "מזהה מוצר באמצעות AI...";
 
-                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Identify the Israeli product for barcode ${barcode}. Return ONLY the product name in Hebrew, as it appears in supermarket chains like Rami Levy. If unknown, return 'Unknown'.` }] }]
-                    })
-                });
+        // הכתובת המדויקת - שים לב לכל אות
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ 
+                    parts: [{ 
+                        text: `Identify this Israeli barcode: ${barcode}. Return ONLY the product name in Hebrew. If you don't know it, return 'Unknown'.` 
+                    }] 
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            log(`❌ שגיאת שרת (${response.status}): ${errData.error ? errData.error.message : 'Unknown error'}`);
+            status.innerText = "תקלה בתקשורת עם ה-AI.";
+            return;
+        }
+
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates[0]) {
+            const aiResponse = result.candidates[0].content.parts[0].text.trim();
+            if (aiResponse !== "Unknown") {
+                log("✨ ה-AI זיהה: " + aiResponse);
+                document.getElementById('product_name').value = aiResponse;
+                status.innerText = "ה-AI זיהה! אפשר לשמור.";
+            } else {
+                log("❓ ה-AI לא מכיר את הברקוד.");
+                status.innerText = "לא זוהה אוטומטית.";
+            }
+        }
+    } catch (err) {
+        log("❗ תקלה: " + err.message);
+    }
+}
 
                 const result = await response.json();
                 const aiResponse = result.candidates[0].content.parts[0].text.trim();
@@ -103,6 +132,7 @@
     </script>
 </body>
 </html>
+
 
 
 
