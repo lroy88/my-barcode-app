@@ -3,70 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>סורק ושומר</title>
+    <title>סורק המוצרים שלי</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f9f9f9; }
-        #reader { width: 100%; max-width: 350px; margin: 20px auto; border-radius: 10px; overflow: hidden; }
-        input { width: 80%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; }
-        button { width: 85%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 8px; font-size: 16px; margin-top: 10px; }
-        #status { margin-top: 15px; color: #555; font-weight: bold; }
+        body { font-family: sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        #status { margin-top: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
 
+<div class="container">
     <h2>סורק מוצרים</h2>
-    <div id="reader"></div>
-    
-    <input type="text" id="barcode" placeholder="ברקוד ייסרק כאן">
-    <input type="text" id="product_name" placeholder="הקלד שם מוצר">
-    <button onclick="saveData()">שמור ב-Supabase</button>
-    
-    <p id="status">ממתין לסריקה...</p>
+    <div id="reader"></div> <input type="text" id="barcode" placeholder="ברקוד (נסרק אוטומטית)">
+    <input type="text" id="product_name" placeholder="שם המוצר">
+    <button onclick="saveToSupabase()">שמור במערכת</button>
+    <p id="status"></p>
+</div>
 
-    <script>
-        // פרטי Supabase
-        const SUPABASE_URL = 'ה-URL-שלך';
-        const SUPABASE_KEY = 'ה-KEY-שלך';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<script>
+    // הגדרות Supabase
+    const SUPABASE_URL = 'https://lqicxcbgdgamjxnfejto.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxaWN4Y2JnZGdhbWp4bmZlanRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzE2MjcsImV4cCI6MjA4NjQwNzYyN30.ohqSNWypejEEDHwDY4MzsHXyCOOKlFFNHlZ-xGAk_w0';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // פונקציה שמופעלת כשנסרק ברקוד
-        function onScanSuccess(decodedText) {
-            document.getElementById('barcode').value = decodedText;
-            document.getElementById('status').innerText = "ברקוד נסרק! הכנס שם ושמור.";
-            if (navigator.vibrate) navigator.vibrate(100);
+    // הגדרת הסורק
+    async function onScanSuccess(decodedText) {
+        document.getElementById('barcode').value = decodedText;
+        const status = document.getElementById('status');
+        status.innerText = "מחפש מוצר בבסיס הנתונים...";
+
+        if (navigator.vibrate) navigator.vibrate(100);
+
+        // חיפוש ב-Supabase
+        const { data, error } = await supabaseClient
+            .from('barcode_products')
+            .select('product_name')
+            .eq('barcode', decodedText)
+            .maybeSingle(); // מחזיר שורה אחת או כלום
+
+        if (error) {
+            console.error(error);
+            status.innerText = "שגיאה בחיפוש המידע.";
+        } else if (data) {
+            // אם המוצר נמצא
+            document.getElementById('product_name').value = data.product_name;
+            status.innerText = "✅ מוצר מוכר: " + data.product_name;
+            status.style.color = "blue";
+        } else {
+            // אם המוצר חדש
+            document.getElementById('product_name').value = "";
+            document.getElementById('product_name').placeholder = "מוצר חדש! הקלד שם...";
+            status.innerText = "❓ מוצר לא מוכר. נא להזין שם.";
+            status.style.color = "orange";
         }
+    }
 
-        // הפעלת הסורק (הקוד שעבד לך!)
-        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        html5QrcodeScanner.render(onScanSuccess);
+    // הגדרת הסורק עם העדפה למצלמה אחורית
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        // פונקציית שמירה
-        async function saveData() {
-            const barcode = document.getElementById('barcode').value;
-            const name = document.getElementById('product_name').value;
-            const status = document.getElementById('status');
+    // הפעלה עם הגדרה מפורשת למצלמה אחורית (facingMode: environment)
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+    );
 
-            if (!barcode || !name) {
-                status.innerText = "חובה לסרוק ברקוד ולכתוב שם!";
-                return;
-            }
+    function onScanSuccess(decodedText) {
+        document.getElementById('barcode').value = decodedText;
+        document.getElementById('status').innerText = "ברקוד נסרק: " + decodedText;
+        
+        // בונוס: רטט קטן כשיש סריקה מוצלחת (עובד ברוב האנדרואידים)
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
 
-            status.innerText = "שומר...";
+    async function saveToSupabase() {
+        const barcode = document.getElementById('barcode').value;
+        const name = document.getElementById('product_name').value;
+        const status = document.getElementById('status');
 
-            const { error } = await supabaseClient
-                .from('barcode_products')
-                .insert([{ barcode: barcode, product_name: name }]);
+        if(!barcode || !name) { status.innerText = "חסרים פרטים!"; return; }
 
-            if (error) {
-                status.innerText = "שגיאה: " + error.message;
-            } else {
-                status.innerText = "✅ נשמר בהצלחה!";
-                document.getElementById('barcode').value = "";
-                document.getElementById('product_name').value = "";
-            }
+        status.innerText = "שומר...";
+        const { error } = await supabaseClient.from('barcode_products').insert([{ barcode, product_name: name }]);
+
+        if (error) { status.innerText = "שגיאה: " + error.message; } 
+        else { 
+            status.innerText = "✅ נשמר בהצלחה!";
+            document.getElementById('barcode').value = '';
+            document.getElementById('product_name').value = '';
         }
-    </script>
+    }
+</script>
 </body>
 </html>
+
