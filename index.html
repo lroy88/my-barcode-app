@@ -32,10 +32,35 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // הגדרת הסורק
-    function onScanSuccess(decodedText) {
+    async function onScanSuccess(decodedText) {
         document.getElementById('barcode').value = decodedText;
-        document.getElementById('status').innerText = "ברקוד נסרק: " + decodedText;
-        // אפשר להוסיף כאן צליל "ביפ"
+        const status = document.getElementById('status');
+        status.innerText = "מחפש מוצר בבסיס הנתונים...";
+
+        if (navigator.vibrate) navigator.vibrate(100);
+
+        // חיפוש ב-Supabase
+        const { data, error } = await supabaseClient
+            .from('barcode_products')
+            .select('product_name')
+            .eq('barcode', decodedText)
+            .maybeSingle(); // מחזיר שורה אחת או כלום
+
+        if (error) {
+            console.error(error);
+            status.innerText = "שגיאה בחיפוש המידע.";
+        } else if (data) {
+            // אם המוצר נמצא
+            document.getElementById('product_name').value = data.product_name;
+            status.innerText = "✅ מוצר מוכר: " + data.product_name;
+            status.style.color = "blue";
+        } else {
+            // אם המוצר חדש
+            document.getElementById('product_name').value = "";
+            document.getElementById('product_name').placeholder = "מוצר חדש! הקלד שם...";
+            status.innerText = "❓ מוצר לא מוכר. נא להזין שם.";
+            status.style.color = "orange";
+        }
     }
 
     // הגדרת הסורק עם העדפה למצלמה אחורית
@@ -77,4 +102,5 @@
 </script>
 </body>
 </html>
+
 
