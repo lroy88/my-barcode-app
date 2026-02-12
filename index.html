@@ -60,9 +60,22 @@
             }
         }
 
-        let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        scanner.render(onScanSuccess);
-        log("המערכת מוכנה.");
+       let scanner = new Html5QrcodeScanner("reader", { 
+            fps: 10, 
+            qrbox: 250,
+            // כאן אנחנו מגדירים את העדפת המצלמה
+            videoConstraints: {
+                facingMode: { exact: "environment" } // "environment" פירושו המצלמה של הסביבה (האחורית)
+            }
+        });
+
+        // אם המכשיר אומר "אין לי מצלמה כזו" (למשל במחשב נייד), ננסה הגדרה פחות קשוחה
+        scanner.render(onScanSuccess).catch(err => {
+            console.warn("Exact environment camera not found, trying default.");
+            let fallbackScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            fallbackScanner.render(onScanSuccess);
+        });
     </script>
 </body>
 </html>
+
