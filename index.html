@@ -33,33 +33,44 @@
 
     // הגדרת הסורק
     async function onScanSuccess(decodedText) {
-        document.getElementById('barcode').value = decodedText;
+        // 1. ניקוי הברקוד מרווחים והפיכה לטקסט
+        const cleanBarcode = String(decodedText).trim(); 
+        document.getElementById('barcode').value = cleanBarcode;
+        
         const status = document.getElementById('status');
-        status.innerText = "מחפש מוצר בבסיס הנתונים...";
+        status.innerText = "מחפש ברקוד: " + cleanBarcode + "...";
 
+        // רטט קטן לסימון הצלחה
         if (navigator.vibrate) navigator.vibrate(100);
 
-        // חיפוש ב-Supabase
-        const { data, error } = await supabaseClient
-            .from('barcode_products')
-            .select('product_name')
-            .eq('barcode', decodedText)
-            .maybeSingle(); // מחזיר שורה אחת או כלום
+        try {
+            // 2. החיפוש ב-Supabase
+            log("מתחבר ל-Supabase לחיפוש..."); // אם יש לך פונקציית log
+            const { data, error } = await supabaseClient
+                .from('barcode_products')
+                .select('*')
+                .eq('barcode', cleanBarcode)
+                .maybeSingle();
 
-        if (error) {
-            console.error(error);
-            status.innerText = "שגיאה בחיפוש המידע.";
-        } else if (data) {
-            // אם המוצר נמצא
-            document.getElementById('product_name').value = data.product_name;
-            status.innerText = "✅ מוצר מוכר: " + data.product_name;
-            status.style.color = "blue";
-        } else {
-            // אם המוצר חדש
-            document.getElementById('product_name').value = "";
-            document.getElementById('product_name').placeholder = "מוצר חדש! הקלד שם...";
-            status.innerText = "❓ מוצר לא מוכר. נא להזין שם.";
-            status.style.color = "orange";
+            if (error) {
+                status.innerText = "שגיאת חיבור: " + error.message;
+                return;
+            }
+
+            if (data) {
+                // 3. אם המוצר נמצא - נמלא את השם (בודק את שני השמות האופציונליים לעמודה)
+                const foundName = data.product_name || data.name || "מוצר ללא שם";
+                document.getElementById('product_name').value = foundName;
+                status.innerText = "✅ נמצא: " + foundName;
+                status.style.color = "blue";
+            } else {
+                // 4. אם המוצר לא נמצא
+                document.getElementById('product_name').value = "";
+                status.innerText = "❓ ברקוד " + cleanBarcode + " לא רשום. הקלד שם ושמור.";
+                status.style.color = "orange";
+            }
+        } catch (e) {
+            status.innerText = "תקלה בחיפוש: " + e.message;
         }
     }
 
@@ -102,4 +113,5 @@
 </script>
 </body>
 </html>
+
 
