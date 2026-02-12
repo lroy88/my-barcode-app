@@ -47,7 +47,7 @@
             // 2. החיפוש ב-Supabase
             log("מתחבר ל-Supabase לחיפוש..."); // אם יש לך פונקציית log
             const { data, error } = await supabaseClient
-                .from('barcode')
+                .from('barcode_products')
                 .select('*')
                 .eq('barcode', cleanBarcode)
                 .maybeSingle();
@@ -113,6 +113,4 @@
 </script>
 </body>
 </html>
-
-
 
