@@ -3,157 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>סורק חכם - גרסה יציבה</title>
+    <title>סורק חכם - ריסטארט</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 10px; background: #f4f4f4; margin: 0; }
-        #reader { width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; }
+        #reader { width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; background: #000; }
         .controls { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
         input { width: 90%; padding: 12px; margin: 5px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
-        button { width: 95%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        button { width: 95%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         #status { margin: 10px 0; font-weight: bold; min-height: 24px; color: #555; }
-        #debug { background: #000; color: #0f0; text-align: left; padding: 10px; font-family: monospace; font-size: 11px; height: 100px; overflow-y: auto; margin-top: 15px; border-radius: 5px; }
+        #debug { background: #000; color: #0f0; text-align: left; padding: 10px; font-family: monospace; font-size: 11px; height: 120px; overflow-y: auto; margin-top: 15px; border-radius: 5px; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
-    <h2>סורק מוצרים AI</h2>
+    <h2>סורק מוצרים חכם</h2>
     <div id="reader"></div>
     
     <div class="controls">
-        <div id="status">ממתין לסריקה...</div>
+        <div id="status">טוען מצלמה...</div>
         <input type="text" id="barcode" placeholder="ברקוד">
-        <input type="text" id="product_name" placeholder="שם המוצר יופיע כאן">
+        <input type="text" id="product_name" placeholder="שם המוצר">
         <button onclick="saveToSupabase()">שמור במאגר שלי</button>
     </div>
 
     <div id="debug">לוג מערכת:</div>
 
     <script>
-        // --- הגדרות - שנה רק כאן ---
+        // --- הגדרות - מלא את הפרטים שלך כאן ---
         const SUPABASE_URL = 'https://lqicxcbgdgamjxnfejto.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxaWN4Y2JnZGdhbWp4bmZlanRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzE2MjcsImV4cCI6MjA4NjQwNzYyN30.ohqSNWypejEEDHwDY4MzsHXyCOOKlFFNHlZ-xGAk_w0';
         const GEMINI_API_KEY = 'AIzaSyCGne0KtwORv_rxnC2JV5HkXM2LV6HsZi0';
+
+        // בדיקה שהמפתחות הוכנסו
+        if (SUPABASE_URL.includes('ה-URL')) {
+            alert("אל תשכח להכניס את המפתחות שלך בקוד!");
+        }
 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         function log(msg) {
             const d = document.getElementById('debug');
-            d.innerHTML += "<br>> " + msg;
+            d.innerHTML += "\n> " + msg;
             d.scrollTop = d.scrollHeight;
         }
 
-        // הפעלת המצלמה
-        const scanner = new Html5QrcodeScanner("reader", { 
+        // הגדרת הסורק
+        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
             fps: 10, 
-            qrbox: 250,
-            videoConstraints: { facingMode: { exact: "environment" } }
+            qrbox: {width: 250, height: 150},
+            aspectRatio: 1.0
         });
 
-        scanner.render(onScanSuccess, onScanError);
+        // הפעלה
+        html5QrcodeScanner.render(onScanSuccess, onScanError);
 
-        function onScanError(err) { /* התעלמות משגיאות סריקה רגילות */ }
+        function onScanError(err) {
+            // שגיאות סריקה רגילות לא מציגים
+        }
 
         async function onScanSuccess(decodedText) {
             const barcode = decodedText.trim();
             document.getElementById('barcode').value = barcode;
-            log("סרקתי: " + barcode);
+            log("סריקה הצליחה: " + barcode);
             
-            // מניעת סריקה כפולה מהירה
-            scanner.pause(true);
+            // השהייה קלה כדי שלא יסרוק שוב ושוב
+            html5QrcodeScanner.pause(true);
+            document.getElementById('status').innerText = "מעבד נתונים...";
+            
             await checkProduct(barcode);
-            setTimeout(() => scanner.resume(), 3000); 
+            
+            setTimeout(() => {
+                html5QrcodeScanner.resume();
+                document.getElementById('status').innerText = "מוכן לסריקה נוספת";
+            }, 5000);
         }
 
-       async function checkProduct(barcode) {
-    const status = document.getElementById('status');
-    const nameInput = document.getElementById('product_name');
-    
-    log("🔍 מחפש ב-Supabase...");
-    try {
-        const { data } = await supabaseClient.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
+        async function checkProduct(barcode) {
+            const status = document.getElementById('status');
+            const nameInput = document.getElementById('product_name');
+            nameInput.value = ""; // ניקוי שם קודם
 
-        if (data) {
-            log("✅ נמצא אצלך!");
-            nameInput.value = data.product_name || data.name;
-            status.innerText = "מוצר מוכר!";
-            return;
-        }
+            log("בודק ב-Supabase...");
+            try {
+                const { data, error } = await supabaseClient
+                    .from('barcode_products')
+                    .select('*')
+                    .eq('barcode', barcode)
+                    .maybeSingle();
 
-        log("🤖 שואל את ה-AI (ניסיון זיהוי)...");
-        status.innerText = "מזהה ב-AI...";
+                if (data) {
+                    log("✅ נמצא ב-Supabase");
+                    nameInput.value = data.product_name || data.name;
+                    status.innerText = "מוצר נמצא במאגר!";
+                    return;
+                }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ 
-                    parts: [{ 
-                        text: `Identify this Israeli barcode: ${barcode}. 
-                        If it's a known product from Rami Levy, Shufersal, or Osem/Tnuva/Strauss, 
-                        return ONLY the name and weight in Hebrew. 
-                        Example: 'חלב תנובה 3% 1 ליטר'. 
-                        Even if you're not 100% sure, give your best guess based on the barcode prefix.
-                        Do not return 'Unknown' unless it's impossible.` 
-                    }] 
-                }]
-            })
-        });
+                log("🤖 פונה ל-AI של גוגל...");
+                status.innerText = "מזהה ב-AI...";
 
-        const result = await response.json();
-        
-        if (result.candidates && result.candidates[0] && result.candidates[0].content) {
-            const aiName = result.candidates[0].content.parts[0].text.trim();
-            log("✨ ה-AI זיהה: " + aiName);
-            nameInput.value = aiName;
-            status.innerText = "ה-AI זיהה. לשמור?";
-        } else {
-            log("❓ ה-AI לא הצליח לזהות.");
-            status.innerText = "לא זוהה. הכנס שם ידנית.";
-        }
-
-    } catch (err) {
-        log("❗ תקלה בחיפוש: " + err.message);
-    }
-}
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `Identify this barcode: ${barcode}. Return ONLY the product name in Hebrew. If it's an Israeli supermarket item, be specific.` }] }]
+                    })
+                });
 
                 const result = await response.json();
+                
                 if (result.candidates && result.candidates[0]) {
                     const aiName = result.candidates[0].content.parts[0].text.trim();
-                    log("✨ ה-AI אומר: " + aiName);
+                    log("✨ AI זיהה: " + aiName);
                     nameInput.value = aiName;
-                    status.innerText = "ה-AI זיהה. לשמור?";
+                    status.innerText = "ה-AI זיהה את המוצר";
                 } else {
-                    log("❓ ה-AI לא זיהה.");
-                    status.innerText = "לא זוהה. הכנס שם ידנית.";
+                    log("❓ AI לא זיהה בוודאות");
+                    status.innerText = "מוצר לא זוהה. הקלד ידנית.";
                 }
 
             } catch (err) {
                 log("❗ תקלה: " + err.message);
+                status.innerText = "תקלה בחיפוש.";
             }
         }
 
         async function saveToSupabase() {
             const bc = document.getElementById('barcode').value;
             const nm = document.getElementById('product_name').value;
-            if (!bc || !nm) return alert("חסר ברקוד או שם!");
+            
+            if (!bc || !nm) {
+                alert("חובה שיהיה ברקוד ושם מוצר!");
+                return;
+            }
 
-            log("שומר...");
-            const { error } = await supabaseClient.from('barcode_products').insert([{ barcode: bc, product_name: nm }]);
+            log("שומר ב-Supabase...");
+            const { error } = await supabaseClient
+                .from('barcode_products')
+                .insert([{ barcode: bc, product_name: nm }]);
             
             if (error) {
                 log("❌ שגיאת שמירה: " + error.message);
                 alert("שגיאה בשמירה");
             } else {
                 log("✅ נשמר בהצלחה!");
-                alert("נשמר!");
+                alert("נשמר במאגר!");
             }
         }
     </script>
 </body>
 </html>
-
-
