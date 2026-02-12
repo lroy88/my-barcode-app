@@ -38,8 +38,24 @@
         // אפשר להוסיף כאן צליל "ביפ"
     }
 
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-    html5QrcodeScanner.render(onScanSuccess);
+    // הגדרת הסורק עם העדפה למצלמה אחורית
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    // הפעלה עם הגדרה מפורשת למצלמה אחורית (facingMode: environment)
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+    );
+
+    function onScanSuccess(decodedText) {
+        document.getElementById('barcode').value = decodedText;
+        document.getElementById('status').innerText = "ברקוד נסרק: " + decodedText;
+        
+        // בונוס: רטט קטן כשיש סריקה מוצלחת (עובד ברוב האנדרואידים)
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
 
     async function saveToSupabase() {
         const barcode = document.getElementById('barcode').value;
@@ -61,3 +77,4 @@
 </script>
 </body>
 </html>
+
