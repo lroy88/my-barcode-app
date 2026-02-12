@@ -1,101 +1,24 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>סורק מאובחן</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>בדיקת מצלמה</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f0f0f0; margin: 0; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #eee; min-height: 250px; }
-        input { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-        #debug { background: #222; color: #0f0; padding: 10px; text-align: left; font-family: monospace; font-size: 11px; margin-top: 20px; border-radius: 5px; height: 120px; overflow-y: auto; white-space: pre-wrap; }
-        .btn { width: 95%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; }
-    </style>
 </head>
-<body>
+<body style="text-align: center; font-family: sans-serif;">
+    <h2>בדיקת מצלמה בלבד</h2>
+    <div id="reader" style="width: 300px; margin: auto;"></div>
+    <p id="result">ממתין לסריקה...</p>
 
-<div class="card">
-    <h3>סורק מוצרים חכם</h3>
-    <div id="reader"></div> <input type="text" id="barcode" placeholder="ברקוד">
-    <input type="text" id="product_name" placeholder="שם מוצר">
-    <button class="btn" onclick="saveNewProduct()">שמור מוצר חדש</button>
-    
-    <div id="debug">המערכת מאתחלת...</div>
-</div>
-
-<script>
-    // 1. הגדרות Supabase - וודא שהפרטים האלו נכונים!
-    const SUPABASE_URL = 'ה-URL-שלך';
-    const SUPABASE_KEY = 'ה-KEY-שלך';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    function log(msg) {
-        const d = document.getElementById('debug');
-        d.innerText += "\n> " + msg;
-        d.scrollTop = d.scrollHeight;
-    }
-
-    // 2. הפעלת הסורק
-    function onScanSuccess(decodedText) {
-        const code = decodedText.trim();
-        document.getElementById('barcode').value = code;
-        log("סרקתי: " + code);
-        checkProductInDatabase(code);
-    }
-
-    // הגדרה פשוטה יותר שנוטה לעבוד טוב יותר בניידים
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 10, 
-        qrbox: {width: 250, height: 250},
-        rememberLastUsedCamera: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
-    });
-    
-    html5QrcodeScanner.render(onScanSuccess);
-    log("המצלמה הופעלה.");
-
-    // 3. חיפוש בבסיס הנתונים
-    async function checkProductInDatabase(code) {
-        log("מחפש ב-Supabase...");
-        try {
-            const { data, error } = await supabaseClient
-                .from('barcode_products')
-                .select('*')
-                .eq('barcode', code)
-                .maybeSingle();
-
-            if (error) {
-                log("שגיאה: " + error.message);
-            } else if (data) {
-                const name = data.product_name || data.name || "ללא שם";
-                document.getElementById('product_name').value = name;
-                log("נמצא: " + name);
-            } else {
-                document.getElementById('product_name').value = "";
-                log("מוצר לא מוכר. נא להזין שם ולשמור.");
-            }
-        } catch (e) {
-            log("תקלה: " + e.message);
+    <script>
+        function onScanSuccess(decodedText) {
+            alert("הצלחה! נסרק: " + decodedText);
+            document.getElementById('result').innerText = "נסרק: " + decodedText;
         }
-    }
 
-    // 4. שמירת מוצר חדש (אם לא נמצא)
-    async function saveNewProduct() {
-        const barcode = document.getElementById('barcode').value;
-        const name = document.getElementById('product_name').value;
-        if(!barcode || !name) { log("חובה למלא ברקוד ושם!"); return; }
-
-        log("שומר מוצר חדש...");
-        const { error } = await supabaseClient
-            .from('barcode_products')
-            .insert([{ barcode: barcode, product_name: name }]);
-
-        if(error) log("שגיאת שמירה: " + error.message);
-        else log("✅ נשמר בהצלחה!");
-    }
-</script>
+        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
 </body>
 </html>
