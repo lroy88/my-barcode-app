@@ -82,22 +82,21 @@
             }
 
             // פנייה ל-AI
-            log("🤖 שואל את ה-AI...");
-            try {
-                // תיקון: שימוש במודל הנכון gemini-1.5-flash במקום gemini-1.5-flash-latest
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-                
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ 
-                        contents: [{ 
-                            parts: [{ 
-                                text: `Identify Israeli product barcode ${barcode}. Return ONLY Hebrew name. If unknown return 'Unknown'.` 
-                            }] 
-                        }] 
-                    })
-                });
+log("🤖 שואל את ה-AI...");
+try {
+    // שימוש ב-API v1 (המודל gemini-1.5-flash זמין שם)
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            contents: [{
+                parts: [{
+                    text: `Identify Israeli product barcode ${barcode}. Return ONLY Hebrew name. If unknown return 'Unknown'.`
+                }]
+            }]
+        })
+    });
 
                 if (!res.ok) {
                     const errText = await res.text().catch(() => '');
@@ -150,3 +149,4 @@
     </script>
 </body>
 </html>
+
