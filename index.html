@@ -25,7 +25,6 @@
         <div id="status">טוען...</div>
         <input type="text" id="barcode" placeholder="ברקוד">
         <input type="text" id="product_name" placeholder="שם המוצר">
-        <!-- תיקון שם הפונקציה -->
         <button onclick="saveToSupabase()">שמור במאגר שלי</button>
     </div>
 
@@ -46,15 +45,11 @@
             d.scrollTop = d.scrollHeight;
         }
 
-        // הפעלת המצלמה
+        // פונקציה להפעלת המצלמה
         function startScanner(mode) {
             if (scanner) scanner.clear();
             scanner = new Html5Qrcode("reader");
-            scanner.start(
-                { facingMode: mode },
-                { fps: 10, qrbox: 250 },
-                onScan
-            ).catch(e => log("שגיאה: " + e));
+            scanner.start({ facingMode: mode }, { fps: 10, qrbox: 250 }, onScan).catch(e => log("שגיאה: " + e));
         }
 
         function switchCamera() {
@@ -74,94 +69,79 @@
             const nameInput = document.getElementById('product_name');
             
             // בדיקה ב-Supabase
-            const { data, error: supaError } = await client
-                .from('barcode_products')
-                .select('*')
-                .eq('barcode', barcode)
-                .maybeSingle();
-
+            const { data, error: supaError } = await client.from('barcode_products').select('*').eq('barcode', barcode).maybeSingle();
+            
             if (supaError) {
                 log("שגיאת Supabase: " + supaError.message);
             }
-
+            
             if (data) {
                 nameInput.value = data.product_name || data.name;
                 document.getElementById('status').innerText = "נמצא במאגר!";
                 return;
             }
 
-            // פנייה ל-AI (Gemini)
+            // פנייה ל-AI
             log("🤖 שואל את ה-AI...");
             try {
-                const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
-
+                // תיקון: שימוש במודל הנכון gemini-1.5-flash במקום gemini-1.5-flash-latest
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                
                 const res = await fetch(url, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // שילוב ה-API Key בצורה תקינה ב-header
-                        'x-goog-api-key': GEMINI_KEY
-                    },
-                    body: JSON.stringify({
-                        contents: [
-                            {
-                                parts: [
-                                    {
-                                        text: `Identify Israeli product barcode ${barcode}. Return ONLY Hebrew name. If unknown return 'Unknown'.`
-                                    }
-                                ]
-                            }
-                        ]
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        contents: [{ 
+                            parts: [{ 
+                                text: `Identify Israeli product barcode ${barcode}. Return ONLY Hebrew name. If unknown return 'Unknown'.` 
+                            }] 
+                        }] 
                     })
                 });
 
                 if (!res.ok) {
                     const errText = await res.text().catch(() => '');
-                    log(`שגיאת HTTP מ-Gemini: ${res.status} ${res.statusText} ${errText}`);
+                    log(`שגיאת HTTP מ-Gemini: ${res.status} ${res.statusText}`);
+                    log(`פרטי שגיאה: ${errText}`);
                     document.getElementById('status').innerText = "שגיאה בחיבור ל-AI";
                     return;
                 }
 
                 const json = await res.json();
-                log("תגובה גולמית מ-Gemini: " + JSON.stringify(json));
-
-                const aiText =
-                    json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-                if (aiText) {
+                log("תגובה מ-Gemini: " + JSON.stringify(json));
+                
+                if (json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts && json.candidates[0].content.parts[0]) {
+                    const aiText = json.candidates[0].content.parts[0].text.trim();
                     log("תשובת AI: " + aiText);
                     nameInput.value = aiText;
-                    document.getElementById('status').innerText =
-                        (aiText === "Unknown") ? "לא זוהה" : "AI זיהה!";
+                    document.getElementById('status').innerText = (aiText === "Unknown") ? "לא זוהה" : "AI זיהה!";
                 } else {
                     log("AI החזיר תשובה ריקה או בפורמט שונה");
+                    log("תגובה מלאה: " + JSON.stringify(json));
                     document.getElementById('status').innerText = "לא קיבלנו תשובה תקינה";
                 }
-            } catch (e) {
-                log("שגיאת AI (fetch): " + e);
+            } catch (e) { 
+                log("שגיאת AI: " + e.message); 
                 document.getElementById('status').innerText = "שגיאה בבקשה ל-AI";
             }
         }
 
-        // התאמה לשם הפונקציה בכפתור
         async function saveToSupabase() {
             const bc = document.getElementById('barcode').value;
             const nm = document.getElementById('product_name').value;
-
+            
             if (!bc || !nm) {
-                alert("חסר ברקוד או שם מוצר");
+                alert("נא למלא ברקוד ושם מוצר");
                 return;
             }
-
-            const { error } = await client
-                .from('barcode_products')
-                .insert([{ barcode: bc, product_name: nm }]);
-
+            
+            const { error } = await client.from('barcode_products').insert([{ barcode: bc, product_name: nm }]);
+            
             if (error) {
-                log("שגיאת שמירה ב-Supabase: " + error.message);
-                alert("שגיאה בשמירה");
+                log("שגיאת שמירה: " + error.message);
+                alert("שגיאה בשמירה: " + error.message);
             } else {
-                alert("נשמר!");
+                alert("נשמר בהצלחה!");
             }
         }
 
